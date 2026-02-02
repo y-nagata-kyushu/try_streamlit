@@ -44,6 +44,11 @@ def get_exchange_rate(base_currency, target_currency, start_date, end_date):
             # マルチインデックスの場合は必要な階層だけ取り出し
             if isinstance(exchange_data.columns, pd.MultiIndex):
                 exchange_data.columns = exchange_data.columns.get_level_values(0)
+            
+            # タイムゾーン情報を削除して統一
+            if exchange_data.index.tz is not None:
+                exchange_data.index = exchange_data.index.tz_localize(None)
+            
             return exchange_data
         else:
             return None
@@ -77,8 +82,14 @@ def convert_currency(df, from_currency, to_currency, start_date, end_date):
     # DataFrameをコピー
     converted_df = df.copy()
     
+    # タイムゾーンを統一（両方のインデックスをタイムゾーンなしに変換）
+    if converted_df.index.tz is not None:
+        converted_df.index = converted_df.index.tz_localize(None)
+    if exchange_df.index.tz is not None:
+        exchange_df.index = exchange_df.index.tz_localize(None)
+    
     # 株価データと為替データのインデックスを結合（前方補完）
-    exchange_rate = exchange_df['Close'].reindex(df.index, method='ffill')
+    exchange_rate = exchange_df['Close'].reindex(converted_df.index, method='ffill')
     
     # 各価格カラムを為替レートで変換
     price_columns = ['Open', 'High', 'Low', 'Close']
@@ -199,6 +210,10 @@ if st.session_state.fetch_data and len(tickers) > 0:
             df = stock.history(start=start_date, end=end_date)
             
             if not df.empty:
+                # タイムゾーン情報を削除して統一
+                if df.index.tz is not None:
+                    df.index = df.index.tz_localize(None)
+                
                 # 銘柄の基本通貨を取得
                 stock_currency = get_stock_currency(ticker)
                 original_currencies[ticker] = stock_currency
